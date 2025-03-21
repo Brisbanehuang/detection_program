@@ -86,6 +86,8 @@ def main():
                 
                 if '生产' in visible_text:
                     show_alert('检测到"生产"关键词！')
+                elif '质检' in visible_text:
+                    show_alert('检测到"质检"关键词！')
             except Exception as e:
                 # 出错时静默等待，不显示状态
                 time.sleep(60)
