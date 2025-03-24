@@ -16,7 +16,7 @@ if %errorlevel% neq 0 (
 
 :: 先尝试直接运行程序
 echo [INFO] Launching program...
-echo [NOTE] After program starts, please complete login in browser, then click OK in popup window.
+echo [NOTE] After program starts, please complete login in browser.
 echo.
 
 python sx.py

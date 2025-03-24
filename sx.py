@@ -9,6 +9,7 @@ import os
 import sys
 import re
 import threading
+from PIL import Image
 
 # 全局变量，用于控制监控选项
 monitor_settings = {
@@ -67,8 +68,20 @@ def set_window_icon(window):
     """为窗口设置图标"""
     try:
         if os.path.exists(ICON_PATH):
-            window.iconbitmap(ICON_PATH)
-    except Exception:
+            # 使用PIL库处理图标文件
+            # 打开并转换图标文件
+            img = Image.open(ICON_PATH)
+            # 确保图片是RGBA模式
+            if img.mode != 'RGBA':
+                img = img.convert('RGBA')
+            # 保存为临时文件
+            temp_icon = "temp_icon.ico"
+            img.save(temp_icon, format='ICO')
+            # 设置窗口图标
+            window.iconbitmap(temp_icon)
+            # 删除临时文件
+            os.remove(temp_icon)
+    except Exception as e:
         # 如果设置图标失败，静默忽略
         pass
 
@@ -96,7 +109,7 @@ def create_control_window():
     """创建控制窗口，允许用户开启或关闭监控选项"""
     window = tk.Tk()
     window.title("关键词检测控制面板")
-    window.geometry("380x450+200+200")  # 增加窗口宽度和高度
+    window.geometry("380x500+200+200")  # 增加窗口高度
     window.resizable(False, False)
     
     # 设置窗口图标
@@ -115,29 +128,68 @@ def create_control_window():
     quality_var = IntVar(value=int(monitor_settings["quality"]))
     rejected_var = IntVar(value=int(monitor_settings["rejected"]))
     
-    # 定义更新函数
-    def update_settings():
+    # 创建状态消息标签
+    status_message_label = Label(window, text="", font=FONT_NORMAL, fg="#0066cc")
+    status_message_label.pack(pady=5)
+    
+    # 显示状态消息的函数
+    def show_status_message(message):
+        status_message_label.config(text=message)
+        # 2秒后清除消息
+        window.after(2000, lambda: status_message_label.config(text=""))
+    
+    # 更新生产关键词监控状态
+    def update_production():
+        old_value = monitor_settings["production"]
         monitor_settings["production"] = bool(production_var.get())
+        status_label.config(text=get_status_text())
+        
+        if old_value != monitor_settings["production"]:
+            if monitor_settings["production"]:
+                show_status_message("已开启监测'生产'关键词")
+            else:
+                show_status_message("已关闭监测'生产'关键词")
+    
+    # 更新质检关键词监控状态
+    def update_quality():
+        old_value = monitor_settings["quality"]
         monitor_settings["quality"] = bool(quality_var.get())
+        status_label.config(text=get_status_text())
+        
+        if old_value != monitor_settings["quality"]:
+            if monitor_settings["quality"]:
+                show_status_message("已开启监测'质检'关键词")
+            else:
+                show_status_message("已关闭监测'质检'关键词")
+    
+    # 更新驳回任务监控状态
+    def update_rejected():
+        old_value = monitor_settings["rejected"]
         monitor_settings["rejected"] = bool(rejected_var.get())
         status_label.config(text=get_status_text())
+        
+        if old_value != monitor_settings["rejected"]:
+            if monitor_settings["rejected"]:
+                show_status_message("已开启监测'驳回任务'")
+            else:
+                show_status_message("已关闭监测'驳回任务'")
     
     # 创建复选框
-    production_cb = Checkbutton(options_frame, text="监控\"生产\"关键词", variable=production_var, 
-                               font=FONT_NORMAL, command=update_settings)
+    production_cb = Checkbutton(options_frame, text="监控'生产'关键词", variable=production_var, 
+                               font=FONT_NORMAL, command=update_production)
     production_cb.grid(row=0, column=0, sticky="w", pady=8)  # 增加项目间距
     
-    quality_cb = Checkbutton(options_frame, text="监控\"质检\"关键词", variable=quality_var, 
-                            font=FONT_NORMAL, command=update_settings)
+    quality_cb = Checkbutton(options_frame, text="监控'质检'关键词", variable=quality_var, 
+                            font=FONT_NORMAL, command=update_quality)
     quality_cb.grid(row=1, column=0, sticky="w", pady=8)  # 增加项目间距
     
-    rejected_cb = Checkbutton(options_frame, text="监控\"驳回任务\"", variable=rejected_var, 
-                             font=FONT_NORMAL, command=update_settings)
+    rejected_cb = Checkbutton(options_frame, text="监控'驳回任务'", variable=rejected_var, 
+                             font=FONT_NORMAL, command=update_rejected)
     rejected_cb.grid(row=2, column=0, sticky="w", pady=8)  # 增加项目间距
     
     # 创建状态显示框
     status_frame = Frame(window, relief=tk.GROOVE, bd=1)
-    status_frame.pack(pady=20, padx=30, fill=tk.BOTH, expand=True)  # 增加边距
+    status_frame.pack(pady=10, padx=30, fill=tk.BOTH, expand=True)  # 增加边距
     
     status_title = Label(status_frame, text="当前监控状态:", font=FONT_NORMAL)
     status_title.pack(anchor="w", padx=15, pady=(15, 8))  # 增加内边距
@@ -157,7 +209,7 @@ def create_control_window():
     # 创建退出按钮
     def on_exit():
         global running
-        if messagebox.askyesno("确认退出", "确定要退出程序吗？"):
+        if messagebox.askyesno("确认退出", "确定要退出程序吗？\n(浏览器和监控程序都将关闭)"):
             running = False
             window.destroy()
     
@@ -181,8 +233,8 @@ def create_control_window():
         bg="#ff6b6b", 
         fg="white", 
         command=on_exit,
-        width=10,  # 设置按钮宽度
-        height=1,  # 设置按钮高度
+        width=15,  # 设置按钮宽度
+        height=2,  # 设置按钮高度
         padx=10,   # 内部水平填充
         pady=5     # 内部垂直填充
     )
