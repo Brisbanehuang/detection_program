@@ -7,6 +7,7 @@ import tkinter as tk
 from tkinter import messagebox
 import os
 import sys
+import re
 
 def get_chrome_driver():
     try:
@@ -84,10 +85,18 @@ def main():
                 
                 visible_text = driver.execute_script("return document.documentElement.innerText;")
                 
+                # 检测关键词
                 if '生产' in visible_text:
                     show_alert('检测到"生产"关键词！')
                 elif '质检' in visible_text:
                     show_alert('检测到"质检"关键词！')
+                
+                # 检测"我的"后面是否有数字
+                pattern = r'我的\s*\d+'
+                matches = re.search(pattern, visible_text)
+                if matches:
+                    show_alert('检测到"驳回"的任务！')
+                
             except Exception as e:
                 # 出错时静默等待，不显示状态
                 time.sleep(60)
