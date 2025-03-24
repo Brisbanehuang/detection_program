@@ -92,26 +92,6 @@ def show_alert(message):
     
     alert.wait_window()  # 等待窗口关闭
 
-def show_login_prompt():
-    root = tk.Tk()
-    root.withdraw()  # 隐藏主窗口
-    alert = tk.Toplevel()
-    alert.title('登录提示')
-    alert.geometry("300x150+500+300")  # 设置窗口大小和位置
-    alert.attributes('-topmost', True)  # 置顶窗口
-    alert.grab_set()  # 模态窗口
-    
-    # 设置窗口图标
-    set_window_icon(alert)
-    
-    label = tk.Label(alert, text="请在浏览器中完成登录，然后点击确定继续", font=FONT_NORMAL, wraplength=250)
-    label.pack(pady=20)
-    
-    ok_button = tk.Button(alert, text="确定", font=FONT_NORMAL, command=alert.destroy)
-    ok_button.pack(pady=10)
-    
-    alert.wait_window()  # 等待窗口关闭
-
 def create_control_window():
     """创建控制窗口，允许用户开启或关闭监控选项"""
     window = tk.Tk()
@@ -228,8 +208,37 @@ def monitor_loop(driver, control_window):
     try:
         # 打开登录页面
         driver.get(login_url)
-        show_login_prompt()
         
+        # 等待用户登录
+        logged_in = False
+        login_attempt_count = 0
+        max_login_attempts = 30  # 最多等待30次，每次5秒
+        
+        # 登录检测循环
+        while not logged_in and login_attempt_count < max_login_attempts and running:
+            try:
+                visible_text = driver.execute_script("return document.documentElement.innerText;")
+                
+                # 检测页面上是否存在登录后才会显示的关键词
+                login_indicators = ['任务广场', '我的', '首页', '任务看板']
+                for indicator in login_indicators:
+                    if indicator in visible_text:
+                        logged_in = True
+                        break
+                
+                if not logged_in:
+                    # 不再显示登录提示，只是等待检测登录成功
+                    login_attempt_count += 1
+                    time.sleep(5)  # 每5秒检查一次登录状态
+                
+            except Exception as e:
+                login_attempt_count += 1
+                time.sleep(5)
+        
+        if not logged_in and running:
+            show_alert("登录超时，请重新启动程序并完成登录")
+            return
+            
         # 主循环
         while running:
             try:
@@ -264,7 +273,11 @@ def monitor_loop(driver, control_window):
     except Exception as e:
         show_alert(f"程序发生错误：{str(e)}")
     finally:
-        driver.quit()
+        # 确保关闭浏览器
+        try:
+            driver.quit()
+        except:
+            pass
 
 def main():
     global running
@@ -286,6 +299,12 @@ def main():
     # 等待监控线程结束
     running = False
     monitor_thread.join(timeout=5)
+    
+    # 确保浏览器被关闭
+    try:
+        driver.quit()
+    except:
+        pass
     
     print("程序已退出")
 
